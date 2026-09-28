@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>寸土 · 合成种植</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(180deg, #f0e9d8, #e8dfc8);
+    color: #3a3a2a;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+    user-select: none;
+  }
+  #app {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .topbar {
+    display: flex;
+    gap: 6px;
+    justify-content: space-between;
+    background: #fffdf7;
+    padding: 8px 12px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .stat { display: flex; align-items: center; gap: 4px; }
+  .stat .icon { font-size: 16px; }
+  .board {
+    position: relative;
+    width: 316px;
+    height: 316px;
+    margin: 0 auto;
+    background: #d9cfb8;
+    border-radius: 14px;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .grid-layer {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 60px);
+    grid-template-rows: repeat(5, 60px);
+    gap: 4px;
+  }
+  .cell {
+    background: #f8f5ee;
+    border-radius: 8px;
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+  .cell:hover { background: #fffefb; }
+  .plant-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .plant {
+    position: absolute;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 0.12s, box-shadow 0.12s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    background: linear-gradient(135deg, #c8e6a0, #98cc6c);
+  }
+  .plant.stage-1 { background: linear-gradient(135deg, #e8e0c8, #d0c4a0); }
+  .plant.stage-2 { background: linear-gradient(135deg, #d4e8b8, #b0d888); }
+  .plant.stage-3 { background: linear-gradient(135deg, #b8e0a0, #88c860); }
+  .plant.stage-4 { background: linear-gradient(135deg, #f0c8e0, #e098c0); }
+  .plant.stage-5 { background: linear-gradient(135deg, #f0d090, #e0b060); }
+  .plant.selected {
+    box-shadow: 0 0 0 3px #4caf50, 0 2px 8px rgba(76,175,80,0.4);
+    transform: scale(1.03);
+    z-index: 5;
+  }
+  .order-panel {
+    background: #fffdf7;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .order-panel .icon { font-size: 22px; margin-right: 6px; vertical-align: middle; }
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: transform 0.1s, opacity 0.15s;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #4caf50; color: white; }
+  .tools {
+    display: flex;
+    gap: 8px;
+  }
+  .tool {
+    flex: 1;
+    background: #fffdf7;
+    border-radius: 12px;
+    padding: 8px 4px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    font-size: 11px;
+    font-weight: 600;
+    transition: transform 0.1s;
+    outline: none;
+  }
+  .tool:active { transform: scale(0.96); }
+  .tool .icon { font-size: 20px; display: block; margin-bottom: 2px; }
+  .tool.active { outline: 2px solid #4caf50; background: #f0f8e8; }
+  .toast {
+    position: fixed;
+    left: 50%;
+    top: 20px;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(40,40,30,0.9);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (max-width: 335px) {
+    .board { transform: scale(0.88); transform-origin: top center; margin-bottom: -38px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="stat"><span class="icon">💧</span><span id="insp">10</span>/10</div>
+    <div class="stat"><span class="icon">💎</span><span id="dew">0</span></div>
+    <div class="stat"><span class="icon">📖</span><span id="dex">0</span>/5</div>
+  </div>
+
+  <div class="board" id="board">
+    <div class="grid-layer" id="gridLayer"></div>
+    <div class="plant-layer" id="plantLayer"></div>
+  </div>
+
+  <div class="order-panel">
+    <div><span class="icon" id="orderIcon">📋</span><span id="orderText">—</span></div>
+    <button class="btn btn-primary" id="deliverBtn">交付</button>
+  </div>
+
+  <div class="tools">
+    <div class="tool" id="toolScissors">
+      <span class="icon">✂️</span>剪刀<br><span id="scissorsCost">2💎</span>
+    </div>
+    <div class="tool" id="toolFertilizer">
+      <span class="icon">💩</span>肥料<br><span id="fertCost">5💎</span>
+    </div>
+    <div class="tool" id="toolReset">
+      <span class="icon">🔄</span>重置<br>&nbsp;
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ==================== 配置 ====================
+  const SIZE = 5;
+  const CELL = 60;
+  const GAP = 4;
+  const STRIDE = CELL + GAP; // 64
+
+  const STAGES = [
+    null,
+    { name: '种子', icon: '🌰', offsets: [[0,0]], value: 1 },
+    { name: '芽',   icon: '🌱', offsets: [[0,0],[0,1]], value: 3 },
+    { name: '株',   icon: '🪴', offsets: [[0,0],[0,1],[0,2]], value: 8 },
+    { name: '花',   icon: '🌸', offsets: [[0,0],[0,1],[1,0],[1,1]], value: 20 },
+    { name: '果',   icon: '🍎', offsets: [[0,0],[0,1],[1,0],[1,1],[2,0]], value: 50 },
+  ];
+  const MAX_STAGE = 5;
+
+  const INSP_MAX = 10;
+  const INSP_REGEN_MS = 8000;     // 每 8 秒恢复 1 点灵感
+  const SAVE_KEY = 'cuntu_save_v1';
+
+  const SCISSORS_COST = 2;
+  const FERT_COST = 5;
+
+  // ==================== 状态 ====================
+  let state = null;
+
+  function defaultState() {
+    return {
+      v: 1,
+      grid: new Array(SIZE * SIZE).fill(null), // 每格: plantId | null
+      plants: {},        // id -> { id, stage, anchor }
+      nextId: 1,
+      insp: INSP_MAX,
+      dew: 0,
+      dexSet: [],
+      order: null,
+      lastInsp: Date.now(),
+      // 运行时（不存档）
+      selected: null,
+      toolMode: null,
+    };
+  }
+
+  // ==================== 网格辅助 ====================
+  function idx(r, c) { return r * SIZE + c; }
+  function rc(i) { return [Math.floor(i / SIZE), i % SIZE]; }
+  function offsetsFor(stage) { return STAGES[stage].offsets; }
+
+  function canPlace(anchor, stage, ignoreIds) {
+    ignoreIds = ignoreIds || [];
+    const [r0, c0] = rc(anchor);
+    for (const [dr, dc] of offsetsFor(stage)) {
+      const r = r0 + dr, c = c0 + dc;
+      if (r >= SIZE || c >= SIZE) return false;
+      const id = state.grid[idx(r, c)];
+      if (id !== null && ignoreIds.indexOf(id) === -1) return false;
+    }
+    return true;
+  }
+
+  function placeOnGrid(id, anchor, stage) {
+    const [r0, c0] = rc(anchor);
+    for (const [dr, dc] of offsetsFor(stage)) {
+      state.grid[idx(r0 + dr, c0 + dc)] = id;
+    }
+  }
+
+  function clearFromGrid(id) {
+    for (let i = 0; i < state.grid.length; i++) {
+      if (state.grid[i] === id) state.grid[i] = null;
+    }
+  }
+
+  function plantAt(cellIdx) {
+    const id = state.grid[cellIdx];
+    return id === null ? null : state.plants[id] || null;
+  }
+
+  function unlockDex(stage) {
+    if (state.dexSet.indexOf(stage) === -1) {
+      state.dexSet.push(stage);
+    }
+  }
+
+  function addPlant(stage, anchor) {
+    const id = state.nextId++;
+    state.plants[id] = { id: id, stage: stage, anchor: anchor };
+    placeOnGrid(id, anchor, stage);
+    unlockDex(stage);
+    return state.plants[id];
+  }
+
+  function removePlant(id) {
+    clearFromGrid(id);
+    delete state.plants[id];
+  }
+
+  // ==================== 游戏动作 ====================
+  function tryPlant(cellIdx) {
+    if (state.insp <= 0) { toast('灵感不足，等一会儿'); return false; }
+    if (!canPlace(cellIdx, 1)) { toast('这里放不下'); return false; }
+    state.insp -= 1;
+    addPlant(1, cellIdx);
+    if (state.insp === INSP_MAX - 1) {
+      // 刚好从满变不满，记录时间戳
+      state.lastInsp = Date.now();
+    }
+    return true;
+  }
+
+  function tryMerge(a, b) {
+    if (!a || !b || a.id === b.id) return false;
+    if (a.stage !== b.stage) { toast('阶段不同，无法合成'); return false; }
+    if (a.stage >= MAX_STAGE) { toast('已是最高阶段'); return false; }
+
+    const newStage = a.stage + 1;
+    const ignore = [a.id, b.id];
+
+    let anchor = null;
+    if (canPlace(a.anchor, newStage, ignore)) anchor = a.anchor;
+    else if (canPlace(b.anchor, newStage, ignore)) anchor = b.anchor;
+
+    if (anchor === null) { toast('空间不足，放不下新植物'); return false; }
+
+    removePlant(a.id);
+    removePlant(b.id);
+    addPlant(newStage, anchor);
+    toast('合成了 ' + STAGES[newStage].name + STAGES[newStage].icon);
+    return true;
+  }
+
+  function cutPlant(plant) {
+    if (state.dew < SCISSORS_COST) { toast('露珠不足'); return false; }
+    const gain = Math.max(1, Math.floor(STAGES[plant.stage].value / 2));
+    state.dew = state.dew - SCISSORS_COST + gain;
+    removePlant(plant.id);
+    toast('剪掉了' + STAGES[plant.stage].name + '，净+' + (gain - SCISSORS_COST) + '💎');
+    return true;
+  }
+
+  function fertilize(plant) {
+    if (state.dew < FERT_COST) { toast('露珠不足'); return false; }
+    if (plant.stage >= MAX_STAGE) { toast('已是最高阶段'); return false; }
+
+    const newStage = plant.stage + 1;
+    clearFromGrid(plant.id);
+    if (!canPlace(plant.anchor, newStage, [plant.id])) {
+      placeOnGrid(plant.id, plant.anchor, plant.stage);
+      toast('空间不足，无法升级');
+      return false;
+    }
+    state.dew -= FERT_COST;
+    plant.stage = newStage;
+    placeOnGrid(plant.id, plant.anchor, newStage);
+    unlockDex(newStage);
+    toast('升级为 ' + STAGES[newStage].name + STAGES[newStage].icon);
+    return true;
+  }
+
+  function makeOrder() {
+    // 订单要求 2～4 阶段
+    const stage = 2 + Math.floor(Math.random() * 3);
+    const reward = STAGES[stage].value * 2 + 3;
+    state.order = { stage: stage, reward: reward };
+  }
+
+  function deliverOrder() {
+    if (!state.order) return false;
+    const stage = state.order.stage;
+    const keys = Object.keys(state.plants);
+    let found = null;
+    for (let i = 0; i < keys.length; i++) {
+      if (state.plants[keys[i]].stage === stage) { found = keys[i]; break; }
+    }
+    if (found === null) { toast('没有可交付的植物'); return false; }
+
+    removePlant(Number(found));
+    const r = state.order.reward;
+    state.dew += r;
+    unlockDex(stage);
+    toast('交付成功，+' + r + '💎');
+    makeOrder();
+    return true;
+  }
+
+  // ==================== 主交互 ====================
+  function onCellClick(cellIdx) {
+    const plant = plantAt(cellIdx);
+
+    // 工具模式优先
+    if (state.toolMode) {
+      if (plant) {
+        if (state.toolMode === 'scissors') cutPlant(plant);
+        else if (state.toolMode === 'fert') fertilize(plant);
+      }
+      state.toolMode = null;
+      render();
+      save();
+      return;
+    }
+
+    // 空格：种植或取消选中
+    if (!plant) {
+      if (state.selected !== null) {
+        state.selected = null;
+        render();
+        return;
+      }
+      if (tryPlant(cellIdx)) {
+        render();
+        save();
+      }
+      return;
+    }
+
+    // 第一次点植物：选中
+    if (state.selected === null) {
+      state.selected = plant.id;
+      render();
+      return;
+    }
+
+    const sel = state.plants[state.selected];
+    if (!sel) { state.selected = null; render(); return; }
+
+    // 点自己：取消
+    if (sel.id === plant.id) {
+      state.selected = null;
+      render();
+      return;
+    }
+
+    // 同阶段尝试合成
+    if (sel.stage === plant.stage) {
+      if (tryMerge(sel, plant)) {
+        state.selected = null;
+        render();
+        save();
+        return;
+      }
+    }
+
+    // 否则换选中
+    state.selected = plant.id;
+    render();
+  }
+
+  // ==================== 灵感恢复 ====================
+  function tick() {
+    if (state.insp >= INSP_MAX) {
+      state.lastInsp = Date.now();
+      return;
+    }
+    const now = Date.now();
+    const elapsed = now - state.lastInsp;
+    const gained = Math.floor(elapsed / INSP_REGEN_MS);
+    if (gained > 0) {
+      state.insp = Math.min(INSP_MAX, state.insp + gained);
+      state.lastInsp += gained * INSP_REGEN_MS;
+      if (state.insp >= INSP_MAX) state.lastInsp = now;
+      render();
+      save();
+    }
+  }
+
+  // ==================== 渲染 ====================
+  const gridLayer = document.getElementById('gridLayer');
+  const plantLayer = document.getElementById('plantLayer');
+  const inspEl = document.getElementById('insp');
+  const dewEl = document.getElementById('dew');
+  const dexEl = document.getElementById('dex');
+  const orderIcon = document.getElementById('orderIcon');
+  const orderText = document.getElementById('orderText');
+  const deliverBtn = document.getElementById('deliverBtn');
+
+  function buildGrid() {
+    gridLayer.innerHTML = '';
+    for (let i = 0; i < SIZE * SIZE; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      (function (index) {
+        cell.addEventListener('click', function () { onCellClick(index); });
+      })(i);
+      gridLayer.appendChild(cell);
+    }
+  }
+
+  function render() {
+    inspEl.textContent = state.insp;
+    dewEl.textContent = state.dew;
+    dexEl.textContent = state.dexSet.length;
+
+    // 植物
+    plantLayer.innerHTML = '';
+    const ids = Object.keys(state.plants);
+    for (let k = 0; k < ids.length; k++) {
+      const p = state.plants[ids[k]];
+      const pos = rc(p.anchor);
+      const r = pos[0], c = pos[1];
+      const offs = offsetsFor(p.stage);
+      let maxR = 0, maxC = 0;
+      for (let i = 0; i < offs.length; i++) {
+        if (offs[i][0] > maxR) maxR = offs[i][0];
+        if (offs[i][1] > maxC) maxC = offs[i][1];
+      }
+      const w = (maxC + 1) * CELL + maxC * GAP;
+      const h = (maxR + 1) * CELL + maxR * GAP;
+
+      const el = document.createElement('div');
+      el.className = 'plant stage-' + p.stage + (state.selected === p.id ? ' selected' : '');
+      el.style.left = (c * STRIDE) + 'px';
+      el.style.top = (r * STRIDE) + 'px';
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      el.textContent = STAGES[p.stage].icon;
+      (function (anchor) {
+        el.addEventListener('click', function (e) {
+          e.stopPropagation();
+          onCellClick(anchor);
+        });
+      })(p.anchor);
+      plantLayer.appendChild(el);
+    }
+
+    // 订单
+    if (state.order) {
+      const s = STAGES[state.order.stage];
+      orderIcon.textContent = s.icon;
+      orderText.textContent = '需要 ' + s.name + ' · 奖励 ' + state.order.reward + '💎';
+      const has = Object.keys(state.plants).some(function (k) {
+        return state.plants[k].stage === state.order.stage;
+      });
+      deliverBtn.disabled = !has;
+    }
+
+    // 工具高亮
+    document.getElementById('toolScissors').classList.toggle('active', state.toolMode === 'scissors');
+    document.getElementById('toolFertilizer').classList.toggle('active', state.toolMode === 'fert');
+  }
+
+  // ==================== 提示 ====================
+  let toastTimer = null;
+  const toastEl = document.getElementById('toast');
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('show');
+    }, 1400);
+  }
+
+  // ==================== 存档 ====================
+  function save() {
+    try {
+      const data = {
+        v: state.v,
+        g: state.grid,
+        p: state.plants,
+        n: state.nextId,
+        i: state.insp,
+        d: state.dew,
+        dx: state.dexSet,
+        o: state.order,
+        t: state.lastInsp,
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('save failed', e);
+    }
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      const d = JSON.parse(raw);
+      state = defaultState();
+      state.grid = d.g || state.grid;
+      state.plants = d.p || {};
+      state.insp = (typeof d.i === 'number') ? d.i : INSP_MAX;
+      state.dew = d.d || 0;
+      state.dexSet = d.dx || [];
+      state.order = d.o || null;
+      state.lastInsp = d.t || Date.now();
+
+      // 修复 nextId
+      let maxId = 0;
+      const keys = Object.keys(state.plants);
+      for (let i = 0; i < keys.length; i++) {
+        const n = Number(keys[i]);
+        if (n > maxId) maxId = n;
+      }
+      state.nextId = Math.max(d.n || 0, maxId + 1);
+
+      // 校验网格一致性
+      for (let i = 0; i < state.grid.length; i++) {
+        const id = state.grid[i];
+        if (id !== null && !state.plants[id]) state.grid[i] = null;
+      }
+      return true;
+    } catch (e) {
+      console.warn('load failed', e);
+      return false;
+    }
+  }
+
+  // ==================== 重置 ====================
+  function reset() {
+    if (!confirm('确定重置？所有进度将清空。')) return;
+    state = defaultState();
+    makeOrder();
+    save();
+    render();
+    toast('已重置');
+  }
+
+  // ==================== 初始化 ====================
+  function init() {
+    buildGrid();
+
+    if (!load()) {
+      state = defaultState();
+      makeOrder();
+    }
+    if (!state.order) makeOrder();
+
+    // 交付
+    deliverBtn.addEventListener('click', function () {
+      if (deliverOrder()) { render(); save(); }
+    });
+
+    // 剪刀
+    document.getElementById('toolScissors').addEventListener('click', function () {
+      if (state.dew < SCISSORS_COST) { toast('露珠不足'); return; }
+      state.toolMode = (state.toolMode === 'scissors') ? null : 'scissors';
+      state.selected = null;
+      render();
+    });
+
+    // 肥料
+    document.getElementById('toolFertilizer').addEventListener('click', function () {
+      if (state.dew < FERT_COST) { toast('露珠不足'); return; }
+      state.toolMode = (state.toolMode === 'fert') ? null : 'fert';
+      state.selected = null;
+      render();
+    });
+
+    // 重置
+    document.getElementById('toolReset').addEventListener('click', reset);
+
+    // 点棋盘空白取消
+    document.getElementById('board').addEventListener('click', function (e) {
+      if (e.target.classList.contains('board')) {
+        state.selected = null;
+        state.toolMode = null;
+        render();
+      }
+    });
+
+    // 首次恢复
+    tick();
+    render();
+
+    // 心跳
+    setInterval(tick, 1000);
+
+    // 离开前保存
+    window.addEventListener('beforeunload', save);
+    window.addEventListener('visibilitychange', function () {
+      if (document.hidden) save();
+    });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
