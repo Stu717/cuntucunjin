@@ -21,8 +21,9 @@ body {
   border-radius: 10px; font-size: 12px; font-weight: 700;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
-.hud .stat { display: flex; align-items: center; gap: 3px; }
+.hud .stat { display: flex; align-items: center; gap: 3px; cursor: pointer; }
 .hud .stat .icon { font-size: 14px; }
+.hud .stat.clickable { background: #f0e8d8; border-radius: 6px; padding: 2px 6px; }
 
 .board {
   position: relative; width: 316px; height: 316px;
@@ -42,9 +43,7 @@ body {
 }
 .cell.warn { background: #ffd6d6; }
 .cell.critical { background: #ffb0b0; }
-.item-layer {
-  position: absolute; inset: 0; pointer-events: none;
-}
+.item-layer { position: absolute; inset: 0; pointer-events: none; }
 .item-cell {
   position: absolute; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
@@ -67,31 +66,37 @@ body {
   font-size: 26px; pointer-events: auto; cursor: pointer;
   background: linear-gradient(135deg, #a0d8ef, #6bb8d8);
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  transition: transform 0.08s, opacity 0.15s;
+  transition: transform 0.08s;
 }
 .gen-cell:active { transform: scale(0.94); }
-.gen-cell.no-energy { opacity: 0.45; }
 .gen-cell.locked { display: none; }
-.gen-cell .badge {
-  position: absolute; top: -4px; right: -4px;
-  background: #ff5722; color: #fff;
-  font-size: 9px; font-weight: 700;
-  border-radius: 8px; padding: 1px 4px;
+.gen-cell .lvl {
+  position: absolute; bottom: 1px; left: 3px;
+  font-size: 9px; font-weight: 700; color: #fff;
+  text-shadow: 0 0 2px rgba(0,0,0,0.6);
 }
+.gen-cell .up-btn {
+  position: absolute; top: -4px; right: -4px;
+  background: #ff9800; color: #fff;
+  font-size: 10px; font-weight: 700;
+  border-radius: 8px; padding: 1px 5px;
+  cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.gen-cell .up-btn.disabled { background: #bbb; }
 
 .orders { display: flex; flex-direction: column; gap: 6px; }
 .order {
   display: flex; align-items: center; justify-content: space-between;
   background: #fffdf7; border-radius: 10px; padding: 8px 10px;
-  font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  font-size: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
-.order .info { display: flex; align-items: center; gap: 6px; }
-.order .icon { font-size: 20px; }
-.order .reward { color: #7a5c00; font-weight: 700; margin-left: 4px; }
+.order .info { display: flex; align-items: center; gap: 4px; flex: 1; }
+.order .icon { font-size: 18px; }
+.order .reward { color: #7a5c00; font-weight: 700; margin-left: 2px; }
 
 .btn {
   border: none; border-radius: 7px;
-  padding: 6px 12px; font-size: 12px;
+  padding: 6px 10px; font-size: 12px;
   font-weight: 700; cursor: pointer;
   transition: transform 0.1s, opacity 0.15s;
 }
@@ -121,19 +126,39 @@ body {
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-@media (max-width: 335px) {
-  .board { transform: scale(0.88); transform-origin: top center; margin-bottom: -38px; }
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200; padding: 20px;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: #fffdf7; border-radius: 14px;
+  padding: 16px; width: 100%; max-width: 300px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.modal h3 { margin: 0 0 12px 0; font-size: 15px; }
+.modal .item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0; border-bottom: 1px solid #eee; font-size: 12px;
+}
+.modal .item:last-child { border-bottom: none; }
+.modal .item .name { flex: 1; }
+.modal .item .cost { color: #7a5c00; font-weight: 700; margin-right: 6px; }
+.modal .close-btn {
+  width: 100%; margin-top: 12px; padding: 8px;
+  background: #bbb; color: #fff; border: none;
+  border-radius: 8px; font-weight: 700; cursor: pointer;
 }
 </style>
 </head>
 <body>
 <div id="app">
   <div class="hud">
-    <div class="stat"><span class="icon">⚡</span><span id="hudEnergy">20</span>/20</div>
     <div class="stat"><span class="icon">💧</span><span id="hudDew">0</span></div>
-    <div class="stat"><span class="icon">📖</span><span id="hudDex">0</span></div>
+    <div class="stat"><span class="icon">📖</span><span id="hudBook">0</span></div>
     <div class="stat"><span class="icon">⭐</span>Lv<span id="hudLevel">1</span></div>
-    <div class="stat"><span class="icon">✂️</span><span id="hudScissors">3</span></div>
+    <div class="stat"><span class="icon">✂️</span><span id="hudScissors">3</span>/<span id="hudScissorsMax">3</span></div>
   </div>
 
   <div class="board" id="board">
@@ -146,23 +171,28 @@ body {
   <div class="tools">
     <div class="tool" id="toolSell"><span class="icon">💰</span>出售</div>
     <div class="tool" id="toolScissors"><span class="icon">✂️</span>剪刀</div>
-    <div class="tool" id="toolRefresh"><span class="icon">🔄</span>换单</div>
+    <div class="tool" id="toolRefresh"><span class="icon">🔄</span>换单<br>5💧</div>
+    <div class="tool" id="toolShop"><span class="icon">📖</span>图鉴</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="shopModal">
+  <div class="modal">
+    <h3>📖 图鉴商店</h3>
+    <div id="shopList"></div>
+    <button class="close-btn" id="shopClose">关闭</button>
+  </div>
+</div>
 
 <script>
 (function(){
 'use strict';
 
-// ============ 配置 ============
-const SIZE = 5;
-const CELL = 60;
-const GAP = 4;
-const STRIDE = CELL + GAP;
-const SAVE_KEY = 'cuntu_v3';
+const SIZE = 5, CELL = 60, GAP = 4, STRIDE = CELL + GAP;
+const SAVE_KEY = 'cuntu_v4';
 
-// 合成链
+// ============ 合成链 ============
 const CHAINS = {
   plant: {
     name: '植物', color: '#e8f5e0', textColor: '#3a5a20',
@@ -210,37 +240,45 @@ const CHAINS = {
   }
 };
 
-// 生成器：无冷却，只占格，只消耗能量
+// ============ 生成器 ============
 const GENERATORS = {
-  seed:  {name:'种子袋', icon:'🎁', chain:'plant', pos:0,  unlockLv:1},
-  ore:   {name:'矿石镐', icon:'⛏️', chain:'ore',   pos:4,  unlockLv:2},
-  cloth: {name:'织布机', icon:'🪡', chain:'cloth', pos:20, unlockLv:3},
+  seed:  {name:'种子袋', icon:'🎁', chain:'plant', pos:0,  unlockLv:1, lvl:1, upCost:[15,40]},
+  ore:   {name:'矿石镐', icon:'⛏️', chain:'ore',   pos:4,  unlockLv:2, lvl:1, upCost:[15,40]},
+  cloth: {name:'织布机', icon:'🪡', chain:'cloth', pos:20, unlockLv:3, lvl:1, upCost:[15,40]},
 };
 
-const ENERGY_MAX = 20;
-const ENERGY_REGEN_MS = 3000; // 3秒1点，能量不是瓶颈，空间才是
-const SCISSORS_MAX = 3;
+const SCISSORS_BASE = 3;
+const REFRESH_COST = 5;
+const SCISSORS_BUY_COST = 10;
+
+// 图鉴商店配置
+const SHOP_ITEMS = [
+  {id:'sell',   name:'出售收益 +50%',   cost:5,  desc:'永久提升出售价格'},
+  {id:'scMax',  name:'剪刀上限 +1',     cost:5,  desc:'永久增加剪刀上限'},
+  {id:'order',  name:'订单奖励 +20%',   cost:8,  desc:'永久提升订单奖励'},
+  {id:'dailyS', name:'每日剪刀 +1',     cost:8,  desc:'每天多一把免费剪刀'},
+  {id:'upDisc', name:'升级费 -20%',     cost:10, desc:'永久降低生成器升级费'},
+];
 
 // ============ 状态 ============
 let state = null;
 
 function defaultState() {
   const s = {
-    v: 3,
+    v: 4,
     grid: new Array(SIZE*SIZE).fill(null),
     items: {},
     nextId: 1,
     nextOrderId: 1,
-    energy: ENERGY_MAX,
     dew: 0,
-    dexPoints: 0,
+    book: 0,
     dex: [],
     orders: [],
     level: 1,
     xp: 0,
-    scissors: SCISSORS_MAX,
-    lastEnergy: Date.now(),
+    scissors: SCISSORS_BASE,
     lastScissorsDay: new Date().toDateString(),
+    shop: {},
     selected: null,
     toolMode: null,
   };
@@ -283,7 +321,6 @@ function putItemOnGrid(item) {
   const [r0,c0] = toRC(item.anchor);
   for (const [dr,dc] of cells) state.grid[toIdx(r0+dr, c0+dc)] = item.id;
 }
-
 function removeItemFromGrid(item) {
   const cells = getItemCells(item);
   const [r0,c0] = toRC(item.anchor);
@@ -294,7 +331,8 @@ function unlockDex(chain, level) {
   const key = chain + '-' + level;
   if (state.dex.indexOf(key) === -1) {
     state.dex.push(key);
-    state.dexPoints += 1;
+    state.book += 1;
+    toast('📖 图鉴 +1');
   }
 }
 
@@ -312,25 +350,39 @@ function deleteItem(item) {
   delete state.items[item.id];
 }
 
-// ============ 生成器（无冷却） ============
+// ============ 生成器 ============
 function isGenUnlocked(key) { return state.level >= GENERATORS[key].unlockLv; }
 
 function triggerGenerator(key) {
   const gen = GENERATORS[key];
   if (!isGenUnlocked(key)) { toast('等级不足'); return; }
-  if (state.energy < 1) { toast('能量不足'); return; }
 
   const empties = [];
   for (let i = 0; i < state.grid.length; i++) {
     if (state.grid[i] === null) empties.push(i);
   }
-  if (empties.length === 0) { toast('棋盘已满，先处理'); return; }
+  if (empties.length === 0) { toast('棋盘已满'); return; }
 
   const anchor = empties[Math.floor(Math.random() * empties.length)];
-  addItem(gen.chain, 1, anchor);
-  state.energy -= 1;
-  save();
-  render();
+  const lvl = Math.min(gen.lvl, CHAINS[gen.chain].items.length - 1);
+  addItem(gen.chain, lvl, anchor);
+  save(); render();
+}
+
+function upgradeGen(key) {
+  const gen = GENERATORS[key];
+  if (!isGenUnlocked(key)) return;
+  if (gen.lvl >= 3) { toast('已满级'); return; }
+  if (state.level < 10 && gen.lvl >= 2) { toast('需要 Lv10 才能升 3 级'); return; }
+
+  let cost = gen.upCost[gen.lvl - 1];
+  if (state.shop.upDisc) cost = Math.floor(cost * 0.8);
+  if (state.dew < cost) { toast('水滴不足，需要 ' + cost); return; }
+
+  state.dew -= cost;
+  gen.lvl += 1;
+  toast(gen.name + ' 升到 ' + gen.lvl + ' 级');
+  save(); render();
 }
 
 // ============ 合成 ============
@@ -344,15 +396,13 @@ function tryMerge(a, b) {
 
   removeItemFromGrid(a);
   removeItemFromGrid(b);
-
   let anchor = null;
   if (canPlaceCells(a.anchor, newCells)) anchor = a.anchor;
   else if (canPlaceCells(b.anchor, newCells)) anchor = b.anchor;
 
   if (anchor === null) {
-    putItemOnGrid(a);
-    putItemOnGrid(b);
-    toast('空间不足，无法合成');
+    putItemOnGrid(a); putItemOnGrid(b);
+    toast('空间不足');
     return false;
   }
 
@@ -364,7 +414,6 @@ function tryMerge(a, b) {
   return true;
 }
 
-// ============ 移动 ============
 function moveItemTo(item, targetIdx) {
   const cells = getItemCells(item);
   removeItemFromGrid(item);
@@ -383,12 +432,13 @@ function moveItemTo(item, targetIdx) {
 // ============ 出售 / 剪刀 ============
 function sellItem(item) {
   const cfg = getItemConfig(item);
-  const price = Math.max(1, Math.floor(cfg.value * 0.1));
+  let price = Math.max(1, Math.floor(cfg.value * 0.1));
+  if (state.shop.sell) price = Math.floor(price * 1.5);
   state.dew += price;
   deleteItem(item);
   state.selected = null;
   state.toolMode = null;
-  toast('出售 +' + price + '💎');
+  toast('出售 +' + price + '💧');
   save(); render();
 }
 
@@ -402,7 +452,7 @@ function scissorsItem(item) {
   save(); render();
 }
 
-// ============ 订单 ============
+// ============ 订单（要求 2 个物品） ============
 function maxOrderLevel(chain) {
   const total = CHAINS[chain].items.length - 1;
   const byLv = 2 + Math.floor(state.level / 2);
@@ -413,17 +463,36 @@ function generateOrder() {
   const chains = ['plant'];
   if (isGenUnlocked('ore')) chains.push('ore');
   if (isGenUnlocked('cloth')) chains.push('cloth');
-  const chain = chains[Math.floor(Math.random() * chains.length)];
-  const maxLv = maxOrderLevel(chain);
-  const level = 2 + Math.floor(Math.random() * Math.max(1, maxLv - 1));
-  const cfg = CHAINS[chain].items[level];
-  const reward = cfg.value * 2 + level * 3;
-  return {id: state.nextOrderId++, chain: chain, level: level, reward: reward};
+
+  // 生成 2 个不同需求
+  const c1 = chains[Math.floor(Math.random() * chains.length)];
+  let c2 = chains[Math.floor(Math.random() * chains.length)];
+  // 尽量让两条链不同，逼玩家多线
+  if (chains.length >= 2 && c2 === c1) {
+    c2 = chains[(chains.indexOf(c1) + 1) % chains.length];
+  }
+
+  const lv1 = 2 + Math.floor(Math.random() * Math.max(1, maxOrderLevel(c1) - 1));
+  const lv2 = 2 + Math.floor(Math.random() * Math.max(1, maxOrderLevel(c2) - 1));
+
+  const v1 = CHAINS[c1].items[lv1].value;
+  const v2 = CHAINS[c2].items[lv2].value;
+  let reward = Math.floor(v1 * 2 + lv1 * 3 + v2 * 2 + lv2 * 3);
+  if (state.shop.order) reward = Math.floor(reward * 1.2);
+
+  return {
+    id: state.nextOrderId++,
+    reqs: [
+      {chain: c1, level: lv1},
+      {chain: c2, level: lv2},
+    ],
+    reward: reward,
+  };
 }
 
-function refreshOrders(free) {
-  if (!free && state.energy < 3) { toast('能量不足'); return; }
-  if (!free) state.energy -= 3;
+function refreshOrders() {
+  if (state.dew < REFRESH_COST) { toast('水滴不足'); return; }
+  state.dew -= REFRESH_COST;
   state.orders = [generateOrder(), generateOrder()];
   if (state.level >= 5) state.orders.push(generateOrder());
   save(); render();
@@ -432,20 +501,32 @@ function refreshOrders(free) {
 function deliverOrder(orderIdx) {
   const order = state.orders[orderIdx];
   if (!order) return;
-  for (const id in state.items) {
-    const item = state.items[id];
-    if (item.chain === order.chain && item.level === order.level) {
-      deleteItem(item);
-      state.dew += order.reward;
-      state.xp += Math.floor(order.reward / 2);
-      state.orders[orderIdx] = generateOrder();
-      checkLevelUp();
-      save(); render();
-      toast('交付 +' + order.reward + '💎');
-      return;
+
+  // 检查是否所有需求都有
+  const used = [];
+  for (const req of order.reqs) {
+    let found = null;
+    for (const id in state.items) {
+      if (used.indexOf(Number(id)) !== -1) continue;
+      const item = state.items[id];
+      if (item.chain === req.chain && item.level === req.level) {
+        found = Number(id); break;
+      }
     }
+    if (found === null) { toast('缺少 ' + CHAINS[req.chain].items[req.level].name); return; }
+    used.push(found);
   }
-  toast('没有可交付的物品');
+
+  // 删除所有使用的物品
+  for (const id of used) {
+    deleteItem(state.items[id]);
+  }
+  state.dew += order.reward;
+  state.xp += Math.floor(order.reward / 2);
+  state.orders[orderIdx] = generateOrder();
+  checkLevelUp();
+  save(); render();
+  toast('交付 +' + order.reward + '💧');
 }
 
 // ============ 等级 ============
@@ -456,27 +537,18 @@ function checkLevelUp() {
     toast('升到 Lv' + state.level);
     if (state.level === 2) toast('解锁矿石镐');
     if (state.level === 3) toast('解锁织布机');
+    if (state.level === 5) toast('解锁第 3 个订单槽');
+    if (state.level === 7) toast('解锁图鉴商店');
+    if (state.level === 10) toast('生成器可升 3 级');
   }
 }
 
-// ============ 定时 ============
+// ============ 每日剪刀重置 ============
 function tick() {
-  const now = Date.now();
-  if (state.energy < ENERGY_MAX) {
-    const elapsed = now - state.lastEnergy;
-    const gained = Math.floor(elapsed / ENERGY_REGEN_MS);
-    if (gained > 0) {
-      state.energy = Math.min(ENERGY_MAX, state.energy + gained);
-      state.lastEnergy += gained * ENERGY_REGEN_MS;
-      if (state.energy >= ENERGY_MAX) state.lastEnergy = now;
-      renderHUD();
-    }
-  } else {
-    state.lastEnergy = now;
-  }
   const today = new Date().toDateString();
   if (state.lastScissorsDay !== today) {
-    state.scissors = SCISSORS_MAX;
+    const base = SCISSORS_BASE + (state.shop.scMax ? 1 : 0) + (state.shop.dailyS ? 1 : 0);
+    state.scissors = base;
     state.lastScissorsDay = today;
     save(); render();
   }
@@ -508,19 +580,33 @@ function renderGens() {
     const [r,c] = toRC(gen.pos);
     const el = document.createElement('div');
     el.className = 'gen-cell';
-    if (state.energy < 1) el.classList.add('no-energy');
     el.style.left = (c*STRIDE) + 'px';
     el.style.top = (r*STRIDE) + 'px';
     el.style.width = CELL + 'px';
     el.style.height = CELL + 'px';
-    el.dataset.gen = key;
-    el.innerHTML = '<span>' + gen.icon + '</span>';
-    (function(k){
-      el.addEventListener('click', function(e){
+    el.innerHTML = '<span>' + gen.icon + '</span><span class="lvl">Lv' + gen.lvl + '</span>';
+
+    // 升级按钮
+    if (gen.lvl < 3) {
+      const upBtn = document.createElement('div');
+      upBtn.className = 'up-btn';
+      let cost = gen.upCost[gen.lvl - 1];
+      if (state.shop.upDisc) cost = Math.floor(cost * 0.8);
+      if (state.dew < cost || (gen.lvl >= 2 && state.level < 10)) {
+        upBtn.classList.add('disabled');
+      }
+      upBtn.textContent = '↑' + cost;
+      upBtn.addEventListener('click', function(e){
         e.stopPropagation();
-        triggerGenerator(k);
+        upgradeGen(key);
       });
-    })(key);
+      el.appendChild(upBtn);
+    }
+
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      triggerGenerator(key);
+    });
     itemLayer.appendChild(el);
   }
 }
@@ -558,36 +644,65 @@ function renderItems() {
 }
 
 function renderHUD() {
-  document.getElementById('hudEnergy').textContent = state.energy;
   document.getElementById('hudDew').textContent = state.dew;
-  document.getElementById('hudDex').textContent = state.dex.length;
+  document.getElementById('hudBook').textContent = state.book;
   document.getElementById('hudLevel').textContent = state.level;
   document.getElementById('hudScissors').textContent = state.scissors;
+  const maxSc = SCISSORS_BASE + (state.shop.scMax ? 1 : 0) + (state.shop.dailyS ? 1 : 0);
+  document.getElementById('hudScissorsMax').textContent = maxSc;
 }
 
 function renderOrders() {
   ordersEl.innerHTML = '';
   state.orders.forEach(function(order, idx){
-    const cfg = CHAINS[order.chain].items[order.level];
-    const chainCfg = CHAINS[order.chain];
     const div = document.createElement('div');
     div.className = 'order';
     const info = document.createElement('div');
     info.className = 'info';
-    info.innerHTML =
-      '<span class="icon" style="color:' + chainCfg.textColor + '">' + cfg.icon + '</span>' +
-      '<span>' + chainCfg.name + ' · ' + cfg.name + '</span>' +
-      '<span class="reward">+' + order.reward + '💧</span>';
+
+    order.reqs.forEach(function(req, i){
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.textContent = ' + ';
+        sep.style.opacity = '0.5';
+        info.appendChild(sep);
+      }
+      const cfg = CHAINS[req.chain].items[req.level];
+      const chainCfg = CHAINS[req.chain];
+      const span = document.createElement('span');
+      span.innerHTML = '<span style="color:' + chainCfg.textColor + '">' + cfg.icon + '</span>' +
+        '<span style="font-size:10px">' + cfg.name + '</span>';
+      info.appendChild(span);
+    });
+
+    const reward = document.createElement('span');
+    reward.className = 'reward';
+    reward.textContent = '+' + order.reward + '💧';
+    info.appendChild(reward);
+
     const btn = document.createElement('button');
     btn.className = 'btn btn-green';
     btn.textContent = '交付';
-    let has = false;
-    for (const id in state.items) {
-      const it = state.items[id];
-      if (it.chain === order.chain && it.level === order.level) { has = true; break; }
+
+    // 检查是否所有需求都能满足
+    const tempUsed = [];
+    let can = true;
+    for (const req of order.reqs) {
+      let found = false;
+      for (const id in state.items) {
+        if (tempUsed.indexOf(Number(id)) !== -1) continue;
+        const it = state.items[id];
+        if (it.chain === req.chain && it.level === req.level) {
+          found = true;
+          tempUsed.push(Number(id));
+          break;
+        }
+      }
+      if (!found) { can = false; break; }
     }
-    btn.disabled = !has;
+    btn.disabled = !can;
     btn.addEventListener('click', function(){ deliverOrder(idx); });
+
     div.appendChild(info);
     div.appendChild(btn);
     ordersEl.appendChild(div);
@@ -651,6 +766,40 @@ function onItemClick(itemId) {
   render();
 }
 
+// ============ 图鉴商店 ============
+function openShop() {
+  if (state.level < 7) { toast('Lv7 解锁图鉴商店'); return; }
+  const list = document.getElementById('shopList');
+  list.innerHTML = '';
+  SHOP_ITEMS.forEach(function(item){
+    const owned = !!state.shop[item.id];
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = '<div class="name">' + item.name + '<br><span style="font-size:10px;color:#888">' + item.desc + '</span></div>' +
+      '<span class="cost">' + item.cost + '📖</span>';
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-green';
+    btn.textContent = owned ? '已购' : '购买';
+    btn.disabled = owned || state.book < item.cost;
+    btn.addEventListener('click', function(){
+      if (state.book < item.cost) { toast('书本不足'); return; }
+      state.book -= item.cost;
+      state.shop[item.id] = true;
+      // 立即生效
+      if (item.id === 'scMax' || item.id === 'dailyS') {
+        state.scissors += 1;
+      }
+      toast('已购买 ' + item.name);
+      save();
+      openShop();
+      render();
+    });
+    div.appendChild(btn);
+    list.appendChild(div);
+  });
+  document.getElementById('shopModal').classList.add('show');
+}
+
 // ============ Toast ============
 let toastTimer = null;
 const toastEl = document.getElementById('toast');
@@ -667,11 +816,13 @@ function save() {
     const data = {
       v: state.v, g: state.grid, it: state.items,
       n: state.nextId, no: state.nextOrderId,
-      e: state.energy, d: state.dew, dp: state.dexPoints,
-      dx: state.dex, o: state.orders,
-      lv: state.level, xp: state.xp,
-      sc: state.scissors, le: state.lastEnergy, ls: state.lastScissorsDay,
+      d: state.dew, b: state.book, dx: state.dex,
+      o: state.orders, lv: state.level, xp: state.xp,
+      sc: state.scissors, ls: state.lastScissorsDay,
+      sh: state.shop, gl: {},
     };
+    for (const key in GENERATORS) gl[key] = GENERATORS[key].lvl;
+    data.gl = gl;
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch (e) { console.warn('save failed', e); }
 }
@@ -686,16 +837,20 @@ function load() {
     if (d.it) state.items = d.it;
     if (d.n) state.nextId = d.n;
     if (d.no) state.nextOrderId = d.no;
-    if (typeof d.e === 'number') state.energy = d.e;
     if (typeof d.d === 'number') state.dew = d.d;
-    if (typeof d.dp === 'number') state.dexPoints = d.dp;
+    if (typeof d.b === 'number') state.book = d.b;
     if (d.dx) state.dex = d.dx;
     if (d.o) state.orders = d.o;
     if (d.lv) state.level = d.lv;
     if (typeof d.xp === 'number') state.xp = d.xp;
     if (typeof d.sc === 'number') state.scissors = d.sc;
-    if (d.le) state.lastEnergy = d.le;
     if (d.ls) state.lastScissorsDay = d.ls;
+    if (d.sh) state.shop = d.sh;
+    if (d.gl) {
+      for (const key in d.gl) {
+        if (GENERATORS[key]) GENERATORS[key].lvl = d.gl[key];
+      }
+    }
     let maxId = 0;
     for (const k in state.items) {
       const n = Number(k);
@@ -709,7 +864,7 @@ function load() {
   } catch (e) { console.warn('load failed', e); return false; }
 }
 
-// ============ 工具按钮 ============
+// ============ 按钮绑定 ============
 document.getElementById('toolSell').addEventListener('click', function(){
   state.toolMode = (state.toolMode === 'sell') ? null : 'sell';
   state.selected = null; render();
@@ -720,7 +875,13 @@ document.getElementById('toolScissors').addEventListener('click', function(){
   state.selected = null; render();
 });
 document.getElementById('toolRefresh').addEventListener('click', function(){
-  refreshOrders(false);
+  refreshOrders();
+});
+document.getElementById('toolShop').addEventListener('click', function(){
+  openShop();
+});
+document.getElementById('shopClose').addEventListener('click', function(){
+  document.getElementById('shopModal').classList.remove('show');
 });
 
 // ============ 初始化 ============
